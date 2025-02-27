@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blue Eagle Snake Game</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            border: 2px solid #333;
+            background-color: #111;
+        }
+        
+        #score {
+            margin-top: 20px;
+            font-size: 24px;
+            color: #333;
+        }
+        
+        #start-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        #start-button:hover {
+            background-color: #45a049;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            text-align: center;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Blue Eagle Snake Game</h1>
+    <div id="game-container"></div>
+    <div id="score">Score: 0</div>
+    <button id="start-button">Start Game</button>
+    <div class="instructions">
+        <p>Use the arrow keys to move the eagle. Collect the red food to grow and increase your score.</p>
+        <p>There are 3 food items available at all times!</p>
+        <p>After reaching 100 points, obstacles will start appearing!</p>
+        <p>Don't crash into the walls, obstacles, or yourself!</p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameContainer = document.getElementById('game-container');
+            const scoreDisplay = document.getElementById('score');
+            const startButton = document.getElementById('start-button');
+            
+            const gridSize = 20;
+            const gameWidth = 400;
+            const gameHeight = 400;
+            const cellSize = gameWidth / gridSize;
+            const foodCount = 3; // Number of food items
+            const obstacleThreshold = 100; // Score threshold for obstacles
+            const obstacleInterval = 30; // Add new obstacle every 30 points after threshold
+            
+            let eagle = [];
+            let foodItems = []; // Array to hold multiple food items
+            let obstacles = []; // Array to hold obstacles
+            let direction = 'right';
+            let nextDirection = 'right';
+            let gameInterval;
+            let score = 0;
+            let gameRunning = false;
+            let lastObstacleScore = obstacleThreshold;
+            
+            // Initialize the game
+            function initGame() {
+                // Clear any existing elements
+                gameContainer.innerHTML = '';
+                
+                // Reset game state
+                eagle = [
+                    { x: 5, y: 10 },
+                    { x: 4, y: 10 },
+                    { x: 3, y: 10 }
+                ];
+                score = 0;
+                direction = 'right';
+                nextDirection = 'right';
+                scoreDisplay.textContent = `Score: ${score}`;
+                
+                // Clear food items and obstacles arrays
+                foodItems = [];
+                obstacles = [];
+                lastObstacleScore = obstacleThreshold;
+                
+                // Place initial food items
+                for (let i = 0; i < foodCount; i++) {
+                    placeFood();
+                }
+                
+                // Render initial state
+                render();
+            }
+            
+            // Place food at random position
+            function placeFood() {
+                let foodPlaced = false;
+                let newFood;
+                
+                while (!foodPlaced) {
+                    newFood = {
+                        x: Math.floor(Math.random() * gridSize),
+                        y: Math.floor(Math.random() * gridSize)
+                    };
+                    
+                    // Check food is not on the eagle, other food, or obstacles
+                    let validPosition = true;
+                    
+                    // Check not on eagle
+                    for (let segment of eagle) {
+                        if (segment.x === newFood.x && segment.y === newFood.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    // Check not on other food items
+                    for (let food of foodItems) {
+                        if (food.x === newFood.x && food.y === newFood.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    // Check not on obstacles
+                    for (let obstacle of obstacles) {
+                        if (obstacle.x === newFood.x && obstacle.y === newFood.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    if (validPosition) {
+                        foodPlaced = true;
+                    }
+                }
+                
+                foodItems.push(newFood);
+            }
+            
+            // Place a new obstacle
+            function placeObstacle() {
+                let obstaclePlaced = false;
+                let newObstacle;
+                
+                while (!obstaclePlaced) {
+                    newObstacle = {
+                        x: Math.floor(Math.random() * gridSize),
+                        y: Math.floor(Math.random() * gridSize)
+                    };
+                    
+                    // Check obstacle is not on the eagle, food, or other obstacles
+                    let validPosition = true;
+                    
+                    // Check not on eagle (with extra buffer space)
+                    for (let segment of eagle) {
+                        // Add a 2-cell buffer around the eagle for fairness
+                        for (let dx = -2; dx <= 2; dx++) {
+                            for (let dy = -2; dy <= 2; dy++) {
+                                if (segment.x + dx === newObstacle.x && segment.y + dy === newObstacle.y) {
+                                    validPosition = false;
+                                    break;
+                                }
+                            }
+                            if (!validPosition) break;
+                        }
+                        if (!validPosition) break;
+                    }
+                    
+                    // Check not on food items
+                    for (let food of foodItems) {
+                        if (food.x === newObstacle.x && food.y === newObstacle.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    // Check not on other obstacles
+                    for (let obstacle of obstacles) {
+                        if (obstacle.x === newObstacle.x && obstacle.y === newObstacle.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    if (validPosition) {
+                        obstaclePlaced = true;
+                    }
+                }
+                
+                obstacles.push(newObstacle);
+            }
+            
+            // Render the game
+            function render() {
+                // Clear container
+                gameContainer.innerHTML = '';
+                
+                // Create obstacles
+                obstacles.forEach(obstacle => {
+                    const obstacleElement = document.createElement('div');
+                    obstacleElement.style.position = 'absolute';
+                    obstacleElement.style.left = `${obstacle.x * cellSize}px`;
+                    obstacleElement.style.top = `${obstacle.y * cellSize}px`;
+                    obstacleElement.style.width = `${cellSize}px`;
+                    obstacleElement.style.height = `${cellSize}px`;
+                    obstacleElement.style.backgroundColor = '#8B4513'; // Brown obstacle
+                    obstacleElement.style.borderRadius = '0';
+                    gameContainer.appendChild(obstacleElement);
+                });
+                
+                // Create food items
+                foodItems.forEach(food => {
+                    const foodElement = document.createElement('div');
+                    foodElement.style.position = 'absolute';
+                    foodElement.style.left = `${food.x * cellSize}px`;
+                    foodElement.style.top = `${food.y * cellSize}px`;
+                    foodElement.style.width = `${cellSize}px`;
+                    foodElement.style.height = `${cellSize}px`;
+                    foodElement.style.backgroundColor = 'red';
+                    foodElement.style.borderRadius = '50%';
+                    gameContainer.appendChild(foodElement);
+                });
+                
+                // Create eagle segments
+                eagle.forEach((segment, index) => {
+                    const eagleSegment = document.createElement('div');
+                    eagleSegment.style.position = 'absolute';
+                    eagleSegment.style.left = `${segment.x * cellSize}px`;
+                    eagleSegment.style.top = `${segment.y * cellSize}px`;
+                    eagleSegment.style.width = `${cellSize}px`;
+                    eagleSegment.style.height = `${cellSize}px`;
+                    eagleSegment.style.backgroundColor = '#1e90ff'; // Blue eagle color
+                    
+                    // Make the head look more like an eagle
+                    if (index === 0) {
+                        eagleSegment.style.borderRadius = '50% 50% 0 0';
+                        
+                        // Add eyes
+                        const leftEye = document.createElement('div');
+                        leftEye.style.position = 'absolute';
+                        leftEye.style.left = '20%';
+                        leftEye.style.top = '20%';
+                        leftEye.style.width = '25%';
+                        leftEye.style.height = '25%';
+                        leftEye.style.backgroundColor = 'white';
+                        leftEye.style.borderRadius = '50%';
+                        
+                        const rightEye = document.createElement('div');
+                        rightEye.style.position = 'absolute';
+                        rightEye.style.right = '20%';
+                        rightEye.style.top = '20%';
+                        rightEye.style.width = '25%';
+                        rightEye.style.height = '25%';
+                        rightEye.style.backgroundColor = 'white';
+                        rightEye.style.borderRadius = '50%';
+                        
+                        eagleSegment.appendChild(leftEye);
+                        eagleSegment.appendChild(rightEye);
+                    } else {
+                        // Rest of body is rounded
+                        eagleSegment.style.borderRadius = '5px';
+                    }
+                    
+                    gameContainer.appendChild(eagleSegment);
+                });
+            }
+            
+            // Update game state
+            function update() {
+                direction = nextDirection;
+                
+                // Create new head based on current direction
+                const head = { ...eagle[0] };
+                
+                switch (direction) {
+                    case 'up':
+                        head.y -= 1;
+                        break;
+                    case 'down':
+                        head.y += 1;
+                        break;
+                    case 'left':
+                        head.x -= 1;
+                        break;
+                    case 'right':
+                        head.x += 1;
+                        break;
+                }
+                
+                // Check collisions with walls
+                if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
+                    gameOver();
+                    return;
+                }
+                
+                // Check collisions with self
+                for (let i = 0; i < eagle.length; i++) {
+                    if (eagle[i].x === head.x && eagle[i].y === head.y) {
+                        gameOver();
+                        return;
+                    }
+                }
+                
+                // Check collisions with obstacles
+                for (let obstacle of obstacles) {
+                    if (head.x === obstacle.x && head.y === obstacle.y) {
+                        gameOver();
+                        return;
+                    }
+                }
+                
+                // Add new head
+                eagle.unshift(head);
+                
+                // Check if food is eaten
+                let foodEaten = false;
+                for (let i = 0; i < foodItems.length; i++) {
+                    if (head.x === foodItems[i].x && head.y === foodItems[i].y) {
+                        // Increase score
+                        score += 10;
+                        scoreDisplay.textContent = `Score: ${score}`;
+                        
+                        // Check if we need to add obstacles
+                        if (score >= obstacleThreshold && score >= lastObstacleScore + obstacleInterval) {
+                            placeObstacle();
+                            lastObstacleScore = score;
+                        }
+                        
+                        // Remove eaten food
+                        foodItems.splice(i, 1);
+                        
+                        // Place new food
+                        placeFood();
+                        
+                        foodEaten = true;
+                        break;
+                    }
+                }
+                
+                if (!foodEaten) {
+                    // Remove tail if no food eaten
+                    eagle.pop();
+                }
+                
+                // Render updated state
+                render();
+            }
+            
+            function gameOver() {
+                clearInterval(gameInterval);
+                alert(`Game Over! Your score: ${score}`);
+                gameRunning = false;
+                startButton.textContent = 'Start Game';
+            }
+            
+            // Handle keyboard input
+            document.addEventListener('keydown', (e) => {
+                if (!gameRunning) return;
+                
+                switch (e.key) {
+                    case 'ArrowUp':
+                        if (direction !== 'down') nextDirection = 'up';
+                        break;
+                    case 'ArrowDown':
+                        if (direction !== 'up') nextDirection = 'down';
+                        break;
+                    case 'ArrowLeft':
+                        if (direction !== 'right') nextDirection = 'left';
+                        break;
+                    case 'ArrowRight':
+                        if (direction !== 'left') nextDirection = 'right';
+                        break;
+                }
+                
+                e.preventDefault();
+            });
+            
+            // Start/restart game button
+            startButton.addEventListener('click', () => {
+                if (gameRunning) {
+                    clearInterval(gameInterval);
+                    gameRunning = false;
+                    startButton.textContent = 'Start Game';
+                } else {
+                    initGame();
+                    gameRunning = true;
+                    startButton.textContent = 'Stop Game';
+                    gameInterval = setInterval(update, 150);
+                }
+            });
+            
+            // Initialize the game without starting
+            initGame();
+        });
+    </script>
+</body>
+</html>
